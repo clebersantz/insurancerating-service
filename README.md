@@ -22,6 +22,7 @@ docker compose up --build
 | GET | `/health` | Health check – returns `{"status":"ok"}` |
 | GET | `/univariate` | Univariate analysis on `MTPL2` segmented by area (frequency, severity, risk premium, loss ratio, average premium) |
 | GET | `/fit_gam` | GAM-predicted claim frequency with 95% CI by policyholder age (`MTPL`) |
+| POST | `/process_score` | Individual process score (predicted claim frequency) based on policyholder inputs |
 
 ### Example requests
 
@@ -29,4 +30,7 @@ docker compose up --build
 curl http://localhost:8080/health
 curl http://localhost:8080/univariate
 curl http://localhost:8080/fit_gam
+curl -X POST http://localhost:8080/process_score \
+  -H "Content-Type: application/json" \
+  -d '{"age_policyholder": 45, "power": 6, "bm": 10, "zip": 1, "exposure": 1}'
 ```
