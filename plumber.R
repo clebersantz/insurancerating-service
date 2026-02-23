@@ -57,33 +57,38 @@ function(res) {
 }
 
 #* Individual process score for a policyholder based on MTPL sample data
-#* Accepts JSON with age_policyholder, power, bm, zip, exposure
 #* Returns a predicted claim frequency score
+#* @param age_policyholder Age of the policyholder
+#* @param power Power of the vehicle
+#* @param bm Bonus-malus level
+#* @param zip ZIP code zone
+#* @param exposure Exposure period in years (must be > 0)
 #* @post /process_score
-function(req, res) {
+function(age_policyholder, power, bm, zip, exposure, res) {
   tryCatch({
-    if (is.null(req$postBody) || !nzchar(req$postBody)) {
-      res$status <- 400
-      return(list(error = "Request body is required."))
-    }
-    body <- jsonlite::fromJSON(req$postBody)
-    required_fields <- c("age_policyholder", "power", "bm", "zip", "exposure")
-    missing_fields <- setdiff(required_fields, names(body))
+    params <- list(
+      age_policyholder = age_policyholder,
+      power = power,
+      bm = bm,
+      zip = zip,
+      exposure = exposure
+    )
+    missing_fields <- names(params)[sapply(params, is.null)]
     if (length(missing_fields) > 0) {
       res$status <- 400
       return(list(error = paste("Missing fields:", paste(missing_fields, collapse = ", "))))
     }
     zip_value <- if (is.factor(MTPL$zip)) {
-      factor(body$zip, levels = levels(MTPL$zip))
+      factor(zip, levels = levels(MTPL$zip))
     } else {
-      as.numeric(body$zip)
+      as.numeric(zip)
     }
     new_data <- data.frame(
-      age_policyholder = as.numeric(body$age_policyholder),
-      power = as.numeric(body$power),
-      bm = as.numeric(body$bm),
+      age_policyholder = as.numeric(age_policyholder),
+      power = as.numeric(power),
+      bm = as.numeric(bm),
       zip = zip_value,
-      exposure = as.numeric(body$exposure)
+      exposure = as.numeric(exposure)
     )
     if (anyNA(new_data) || any(new_data$exposure <= 0)) {
       res$status <- 400
