@@ -1,6 +1,13 @@
 library(insurancerating)
 library(dplyr)
 
+process_score_model <- stats::glm(
+  nclaims ~ age_policyholder + power + bm + zip,
+  data = MTPL,
+  family = poisson(),
+  offset = log(exposure)
+)
+
 #* @apiTitle Insurance Rating Service
 #* @apiDescription HTTP service for insurance rating calculations using the insurancerating package with MTPL sample data.
 
@@ -43,6 +50,47 @@ function(res) {
       exposure = "exposure"
     )
     as.data.frame(model$prediction)
+  }, error = function(e) {
+    res$status <- 500
+    list(error = conditionMessage(e))
+  })
+}
+
+#* Individual process score for a policyholder based on MTPL sample data
+#* Accepts JSON with age_policyholder, power, bm, zip, exposure
+#* Returns a predicted claim frequency score
+#* @post /process_score
+function(req, res) {
+  tryCatch({
+    if (is.null(req$postBody) || !nzchar(req$postBody)) {
+      res$status <- 400
+      return(list(error = "Request body is required."))
+    }
+    body <- jsonlite::fromJSON(req$postBody)
+    required_fields <- c("age_policyholder", "power", "bm", "zip", "exposure")
+    missing_fields <- setdiff(required_fields, names(body))
+    if (length(missing_fields) > 0) {
+      res$status <- 400
+      return(list(error = paste("Missing fields:", paste(missing_fields, collapse = ", "))))
+    }
+    zip_value <- if (is.factor(MTPL$zip)) {
+      factor(body$zip, levels = levels(MTPL$zip))
+    } else {
+      as.numeric(body$zip)
+    }
+    new_data <- data.frame(
+      age_policyholder = as.numeric(body$age_policyholder),
+      power = as.numeric(body$power),
+      bm = as.numeric(body$bm),
+      zip = zip_value,
+      exposure = as.numeric(body$exposure)
+    )
+    if (anyNA(new_data) || any(new_data$exposure <= 0)) {
+      res$status <- 400
+      return(list(error = "Invalid input values for scoring."))
+    }
+    score <- stats::predict(process_score_model, newdata = new_data, type = "response")
+    list(score = as.numeric(score))
   }, error = function(e) {
     res$status <- 500
     list(error = conditionMessage(e))
